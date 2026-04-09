@@ -75,7 +75,17 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="text-center text-primary-200 text-xs mt-6">Built by <span className="font-semibold text-white">Automark Labs</span></p>
+        <p className="text-center text-primary-200 text-xs mt-6">
+          Built by{' '}
+          <a
+            href="https://www.automarklabs.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-white hover:underline"
+          >
+            Automark Labs
+          </a>
+        </p>
       </div>
     </div>
   );

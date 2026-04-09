@@ -159,7 +159,17 @@ export default function Layout() {
 
         {/* Branding */}
         <div className="px-3 pb-3">
-          <p className={clsx('text-xs text-gray-400 text-center', collapsed && 'hidden')}>Built by <span className="font-semibold text-primary-600">Automark Labs</span></p>
+          <p className={clsx('text-xs text-gray-400 text-center', collapsed && 'hidden')}>
+            Built by{' '}
+            <a
+              href="https://www.automarklabs.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary-600 hover:underline"
+            >
+              Automark Labs
+            </a>
+          </p>
         </div>
       </aside>
 
