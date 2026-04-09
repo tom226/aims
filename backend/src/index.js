@@ -35,7 +35,17 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    // Allow all .vercel.app and .up.railway.app domains, plus configured origins
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.up.railway.app') ||
+      origin.startsWith('http://localhost')
+    ) {
+      return callback(null, true);
+    }
     return callback(new Error('CORS not allowed'));
   },
   credentials: true,
