@@ -12,6 +12,8 @@ frontend/dist/
 backend/.env
 frontend/.env
 frontend/.env.*
+!frontend/.env.production.example
+!backend/.env.example
 
 # Logs
 npm-debug.log*
