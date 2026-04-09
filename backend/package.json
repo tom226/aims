@@ -12,7 +12,7 @@
     "db:studio": "npx prisma studio",
     "db:generate": "npx prisma generate",
     "build": "npx prisma generate",
-    "start:railway": "npx prisma migrate deploy && npm start"
+    "start:railway": "npx prisma migrate deploy && node prisma/seed.js && npm start"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
