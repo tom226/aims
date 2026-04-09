@@ -1,0 +1,433 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  PROCUREMENT_MANAGER
+  SALESPERSON
+  WAREHOUSE_MANAGER
+  FINANCE_MANAGER
+  VIEWER
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  DISTRIBUTOR
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  ON_HOLD
+}
+
+enum ProductStatus {
+  ACTIVE
+  DISCONTINUED
+}
+
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum GRNStatus {
+  DRAFT
+  CONFIRMED
+}
+
+enum QualityStatus {
+  PASS
+  FAIL
+  PARTIAL
+}
+
+enum SOStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_INVOICED
+  FULLY_INVOICED
+  CLOSED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PARTIALLY_PAID
+  FULLY_PAID
+  OVERDUE
+  CANCELLED
+  CREDITED
+}
+
+enum MovementType {
+  PURCHASE_RECEIPT
+  SALE
+  RETURN_IN
+  RETURN_OUT
+  ADJUSTMENT
+  OPENING_STOCK
+  TRANSFER
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(uuid())
+  name           String
+  email          String    @unique
+  password       String
+  role           Role      @default(SALESPERSON)
+  isActive       Boolean   @default(true)
+  twoFaEnabled   Boolean   @default(false)
+  twoFaSecret    String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  purchaseOrders PurchaseOrder[] @relation("POCreatedBy")
+  salesOrders    SalesOrder[]    @relation("SOCreatedBy")
+  invoices       Invoice[]       @relation("InvCreatedBy")
+  grns           GoodsReceiptNote[] @relation("GRNCreatedBy")
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+
+  @@map("users")
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  parentId  String?
+  parent    Category?  @relation("Subcategory", fields: [parentId], references: [id])
+  children  Category[] @relation("Subcategory")
+  products  Product[]
+  createdAt DateTime   @default(now())
+
+  @@map("categories")
+}
+
+model Supplier {
+  id              String         @id @default(uuid())
+  supplierNumber  String         @unique
+  name            String
+  contactPerson   String?
+  email           String?
+  phone           String?
+  gstin           String?        @unique
+  billingAddress  String?
+  shippingAddress String?
+  paymentTerms    String         @default("Net 30")
+  bankDetails     String?
+  status          SupplierStatus @default(ACTIVE)
+  category        String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  purchaseOrders   PurchaseOrder[]
+  preferredProducts Product[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id              String         @id @default(uuid())
+  customerNumber  String         @unique
+  name            String
+  contactPerson   String?
+  email           String?
+  phone           String?
+  gstin           String?
+  pan             String?
+  billingAddress  String?
+  shippingAddress String?
+  paymentTerms    String         @default("Net 30")
+  creditLimit     Decimal        @default(0) @db.Decimal(15, 2)
+  outstandingBalance Decimal     @default(0) @db.Decimal(15, 2)
+  customerType    CustomerType   @default(RETAIL)
+  status          CustomerStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+
+  @@map("customers")
+}
+
+model Product {
+  id                  String        @id @default(uuid())
+  sku                 String        @unique
+  name                String
+  description         String?
+  categoryId          String?
+  category            Category?     @relation(fields: [categoryId], references: [id])
+  unit                String        @default("Pcs")
+  hsnCode             String?
+  taxRate             Decimal       @default(18) @db.Decimal(5, 2)
+  costPrice           Decimal       @default(0) @db.Decimal(15, 2)
+  sellingPrice        Decimal       @default(0) @db.Decimal(15, 2)
+  reorderLevel        Decimal       @default(0) @db.Decimal(15, 3)
+  reorderQuantity     Decimal       @default(0) @db.Decimal(15, 3)
+  preferredSupplierId String?
+  preferredSupplier   Supplier?     @relation(fields: [preferredSupplierId], references: [id])
+  barcode             String?
+  currentStock        Decimal       @default(0) @db.Decimal(15, 3)
+  reservedStock       Decimal       @default(0) @db.Decimal(15, 3)
+  status              ProductStatus @default(ACTIVE)
+  storageLocation     String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  purchaseOrderItems PurchaseOrderItem[]
+  salesOrderItems    SalesOrderItem[]
+  invoiceItems       InvoiceItem[]
+  stockLedgerEntries StockLedgerEntry[]
+
+  @@map("products")
+}
+
+model PurchaseOrder {
+  id                   String    @id @default(uuid())
+  poNumber             String    @unique
+  supplierId           String
+  supplier             Supplier  @relation(fields: [supplierId], references: [id])
+  status               POStatus  @default(DRAFT)
+  createdById          String
+  createdBy            User      @relation("POCreatedBy", fields: [createdById], references: [id])
+  approvedById         String?
+  expectedDeliveryDate DateTime?
+  deliveryLocation     String?
+  paymentTerms         String?
+  shippingTerms        String?
+  subTotal             Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount            Decimal   @default(0) @db.Decimal(15, 2)
+  additionalCharges    Decimal   @default(0) @db.Decimal(15, 2)
+  grandTotal           Decimal   @default(0) @db.Decimal(15, 2)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  items    PurchaseOrderItem[]
+  grns     GoodsReceiptNote[]
+  invoices Invoice[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(uuid())
+  poId             String
+  purchaseOrder    PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product       @relation(fields: [productId], references: [id])
+  quantityOrdered  Decimal       @db.Decimal(15, 3)
+  quantityReceived Decimal       @default(0) @db.Decimal(15, 3)
+  unitPrice        Decimal       @db.Decimal(15, 2)
+  taxRate          Decimal       @default(0) @db.Decimal(5, 2)
+  taxAmount        Decimal       @default(0) @db.Decimal(15, 2)
+  total            Decimal       @default(0) @db.Decimal(15, 2)
+  notes            String?
+
+  grnItems     GRNItem[]
+  invoiceItems InvoiceItem[]
+
+  @@map("purchase_order_items")
+}
+
+model GoodsReceiptNote {
+  id            String    @id @default(uuid())
+  grnNumber     String    @unique
+  poId          String
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+  status        GRNStatus @default(DRAFT)
+  receivedDate  DateTime  @default(now())
+  notes         String?
+  createdById   String
+  createdBy     User      @relation("GRNCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+
+  items GRNItem[]
+
+  @@map("goods_receipt_notes")
+}
+
+model GRNItem {
+  id               String           @id @default(uuid())
+  grnId            String
+  grn              GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poItemId         String
+  poItem           PurchaseOrderItem @relation(fields: [poItemId], references: [id])
+  quantityReceived Decimal          @db.Decimal(15, 3)
+  batchNumber      String?
+  expiryDate       DateTime?
+  qualityStatus    QualityStatus    @default(PASS)
+  notes            String?
+
+  @@map("grn_items")
+}
+
+model SalesOrder {
+  id              String    @id @default(uuid())
+  soNumber        String    @unique
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  status          SOStatus  @default(DRAFT)
+  deliveryDate    DateTime?
+  shippingAddress String?
+  paymentTerms    String?
+  customerPoRef   String?
+  notes           String?
+  subTotal        Decimal   @default(0) @db.Decimal(15, 2)
+  discountAmount  Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  grandTotal      Decimal   @default(0) @db.Decimal(15, 2)
+  createdById     String
+  createdBy       User      @relation("SOCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  items    SalesOrderItem[]
+  invoices Invoice[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id         String     @id @default(uuid())
+  soId       String
+  salesOrder SalesOrder @relation(fields: [soId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product    @relation(fields: [productId], references: [id])
+  quantity   Decimal    @db.Decimal(15, 3)
+  unitPrice  Decimal    @db.Decimal(15, 2)
+  discount   Decimal    @default(0) @db.Decimal(15, 2)
+  taxRate    Decimal    @default(0) @db.Decimal(5, 2)
+  taxAmount  Decimal    @default(0) @db.Decimal(15, 2)
+  total      Decimal    @default(0) @db.Decimal(15, 2)
+
+  @@map("sales_order_items")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  invoiceNumber   String        @unique
+  invoiceDate     DateTime      @default(now())
+  dueDate         DateTime?
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  salesOrderId    String?
+  salesOrder      SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  linkedPoId      String?
+  linkedPo        PurchaseOrder? @relation(fields: [linkedPoId], references: [id])
+  createdById     String
+  createdBy       User          @relation("InvCreatedBy", fields: [createdById], references: [id])
+  status          InvoiceStatus @default(DRAFT)
+  subTotal        Decimal       @default(0) @db.Decimal(15, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(15, 2)
+  taxAmount       Decimal       @default(0) @db.Decimal(15, 2)
+  shippingCharges Decimal       @default(0) @db.Decimal(15, 2)
+  grandTotal      Decimal       @default(0) @db.Decimal(15, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(15, 2)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items InvoiceItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        String             @id @default(uuid())
+  invoiceId String
+  invoice   Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product            @relation(fields: [productId], references: [id])
+  poItemId  String?
+  poItem    PurchaseOrderItem? @relation(fields: [poItemId], references: [id])
+  quantity  Decimal            @db.Decimal(15, 3)
+  unitPrice Decimal            @db.Decimal(15, 2)
+  costPrice Decimal            @default(0) @db.Decimal(15, 2)
+  discount  Decimal            @default(0) @db.Decimal(15, 2)
+  taxRate   Decimal            @default(0) @db.Decimal(5, 2)
+  taxAmount Decimal            @default(0) @db.Decimal(15, 2)
+  total     Decimal            @default(0) @db.Decimal(15, 2)
+
+  @@map("invoice_items")
+}
+
+model StockLedgerEntry {
+  id            String       @id @default(uuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  movementType  MovementType
+  referenceType String?
+  referenceId   String?
+  quantityIn    Decimal?     @db.Decimal(15, 3)
+  quantityOut   Decimal?     @db.Decimal(15, 3)
+  balanceAfter  Decimal      @db.Decimal(15, 3)
+  unitCost      Decimal      @default(0) @db.Decimal(15, 2)
+  totalValue    Decimal      @default(0) @db.Decimal(15, 2)
+  warehouse     String?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime     @default(now())
+
+  @@map("stock_ledger_entries")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  module    String
+  action    String
+  recordId  String?
+  oldValue  String?
+  newValue  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}

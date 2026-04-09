@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: aims_postgres
+    environment:
+      POSTGRES_USER: aims_user
+      POSTGRES_PASSWORD: aims_password
+      POSTGRES_DB: aims_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: aims_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@aims.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
