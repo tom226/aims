@@ -10,7 +10,9 @@
     "db:migrate:deploy": "npx prisma migrate deploy",
     "db:seed": "node prisma/seed.js",
     "db:studio": "npx prisma studio",
-    "db:generate": "npx prisma generate"
+    "db:generate": "npx prisma generate",
+    "build": "npm install ; npx prisma generate",
+    "start:railway": "npx prisma migrate deploy ; npm start"
   },
   "dependencies": {
     "@prisma/client": "^5.11.0",
@@ -26,10 +28,10 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^8.0.5",
     "pdfkit": "^0.15.0",
+    "prisma": "5.11.0",
     "winston": "^3.13.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0",
-    "prisma": "^5.11.0"
+    "nodemon": "^3.1.0"
   }
 }
