@@ -156,6 +156,11 @@ export default function Layout() {
             )}
           </div>
         </div>
+
+        {/* Branding */}
+        <div className="px-3 pb-3">
+          <p className={clsx('text-xs text-gray-400 text-center', collapsed && 'hidden')}>Built by <span className="font-semibold text-primary-600">Automark Labs</span></p>
+        </div>
       </aside>
 
       {/* Main content */}

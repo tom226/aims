@@ -74,6 +74,8 @@ export default function Login() {
             <p className="mt-1">Password: <span className="font-mono font-semibold">Admin@123</span></p>
           </div>
         </div>
+
+        <p className="text-center text-primary-200 text-xs mt-6">Built by <span className="font-semibold text-white">Automark Labs</span></p>
       </div>
     </div>
   );
