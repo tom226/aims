@@ -11,8 +11,8 @@
     "db:seed": "node prisma/seed.js",
     "db:studio": "npx prisma studio",
     "db:generate": "npx prisma generate",
-    "build": "npm install ; npx prisma generate",
-    "start:railway": "npx prisma migrate deploy ; npm start"
+    "build": "npx prisma generate",
+    "start:railway": "npx prisma migrate deploy && npm start"
   },
   "dependencies": {
     "@prisma/client": "^5.11.0",
@@ -30,6 +30,9 @@
     "pdfkit": "^0.15.0",
     "prisma": "5.11.0",
     "winston": "^3.13.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
