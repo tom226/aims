@@ -254,6 +254,7 @@ model PurchaseOrderItem {
   taxRate          Decimal       @default(0) @db.Decimal(5, 2)
   taxAmount        Decimal       @default(0) @db.Decimal(15, 2)
   total            Decimal       @default(0) @db.Decimal(15, 2)
+  description      String?
   notes            String?
 
   grnItems     GRNItem[]

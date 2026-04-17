@@ -116,3 +116,10 @@
 ::-webkit-scrollbar-track { @apply bg-transparent; }
 ::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+
+/* Print styles — show only GPO area when printing */
+@media print {
+  body > * { display: none !important; }
+  #gpo-print-area { display: block !important; }
+  #gpo-print-area * { display: revert !important; }
+}

@@ -19,7 +19,7 @@ export default function CreatePO() {
   const { register, control, watch, setValue, getValues, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       supplierId: '',
-      items: [{ productId: '', quantityOrdered: 1, unitPrice: '', taxRate: 18, notes: '' }],
+      items: [{ productId: '', quantityOrdered: 1, unitPrice: '', taxRate: 18, description: '', notes: '' }],
       expectedDeliveryDate: '',
       deliveryLocation: '',
       paymentTerms: 'Net 30',
@@ -176,13 +176,18 @@ export default function CreatePO() {
                         )}
                       </div>
                     </div>
+                    {/* Description row */}
+                    <div>
+                      <label className="label">Description / Particulars</label>
+                      <input type="text" className="input" placeholder="e.g. Monthly Maintenance Charges Of Edge1 OOH Software" {...register(`items.${index}.description`)} />
+                    </div>
                   </div>
                 );
               })}
             </div>
             <button
               type="button"
-              onClick={() => append({ productId: '', quantityOrdered: 1, unitPrice: '', taxRate: 18, notes: '' })}
+              onClick={() => append({ productId: '', quantityOrdered: 1, unitPrice: '', taxRate: 18, description: '', notes: '' })}
               className="btn-secondary btn-sm"
             >
               <PlusIcon className="w-4 h-4" /> Add Line Item
@@ -223,7 +228,7 @@ export default function CreatePO() {
                 </select>
               </div>
               <div>
-                <label className="label">Additional Charges (₹)</label>
+                <label className="label">Transportation Charges (₹)</label>
                 <input type="number" min="0" className="input" {...register('additionalCharges')} />
               </div>
             </div>
@@ -282,7 +287,7 @@ export default function CreatePO() {
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1 ml-auto max-w-xs">
               <div className="flex justify-between"><span>Sub Total:</span><span>{fmtCurrency(subTotal)}</span></div>
               <div className="flex justify-between"><span>Tax:</span><span>{fmtCurrency(taxAmount)}</span></div>
-              <div className="flex justify-between"><span>Additional:</span><span>{fmtCurrency(getValues('additionalCharges'))}</span></div>
+              <div className="flex justify-between"><span>Transportation Charges:</span><span>{fmtCurrency(getValues('additionalCharges'))}</span></div>
               <div className="flex justify-between font-bold text-base border-t pt-2"><span>Grand Total:</span><span>{fmtCurrency(grandTotal)}</span></div>
             </div>
           </div>

@@ -4,7 +4,7 @@ const { body, validationResult } = require('express-validator');
 const prisma = require('../utils/prisma');
 const { authenticate, authorize } = require('../middleware/auth');
 const { createAuditLog } = require('../utils/audit');
-const { generateDocNumber } = require('../utils/docNumber');
+const { generateDocNumber, generateGPONumber } = require('../utils/docNumber');
 
 const PO_WRITE_ROLES = ['SUPER_ADMIN', 'PROCUREMENT_MANAGER'];
 
@@ -74,7 +74,7 @@ router.post('/', authenticate, authorize(...PO_WRITE_ROLES), [
     const { supplierId, expectedDeliveryDate, deliveryLocation, paymentTerms,
       shippingTerms, additionalCharges, notes, items } = req.body;
 
-    const poNumber = await generateDocNumber(prisma, 'PO', 'poNumber', 'purchaseOrder');
+    const poNumber = await generateGPONumber(prisma);
 
     // Calculate totals
     let subTotal = 0, taxAmount = 0;
@@ -91,6 +91,7 @@ router.post('/', authenticate, authorize(...PO_WRITE_ROLES), [
         taxRate: parseFloat(item.taxRate || 0),
         taxAmount: itemTax,
         total,
+        description: item.description || null,
         notes: item.notes || null,
       };
     });
