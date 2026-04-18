@@ -140,6 +140,7 @@ model Supplier {
   email           String?
   phone           String?
   gstin           String?        @unique
+  pan             String?
   billingAddress  String?
   shippingAddress String?
   paymentTerms    String         @default("Net 30")

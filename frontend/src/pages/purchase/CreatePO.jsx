@@ -15,11 +15,24 @@ const NEW_SUPPLIER_DEFAULTS = {
   email: '',
   phone: '',
   gstin: '',
+  pan: '',
   billingAddress: '',
   shippingAddress: '',
   paymentTerms: 'Net 30',
   status: 'ACTIVE',
   notes: '',
+};
+
+const NEW_PRODUCT_DEFAULTS = {
+  name: '',
+  description: '',
+  categoryId: '',
+  preferredSupplierId: '',
+  unit: 'Pcs',
+  costPrice: 0,
+  sellingPrice: 0,
+  reorderLevel: 0,
+  reorderQuantity: 0,
 };
 
 function CreateSupplierModal({ onClose, onCreated }) {
@@ -74,6 +87,10 @@ function CreateSupplierModal({ onClose, onCreated }) {
               <input className="input" placeholder="22AAAAA0000A1Z5" {...register('gstin')} />
             </div>
             <div>
+              <label className="label">PAN</label>
+              <input className="input" placeholder="AAAPL1234C" {...register('pan')} />
+            </div>
+            <div>
               <label className="label">Payment Terms</label>
               <select className="input" {...register('paymentTerms')}>
                 {['Net 7', 'Net 15', 'Net 30', 'Net 60', 'Immediate', 'Custom'].map(t => <option key={t}>{t}</option>)}
@@ -106,13 +123,120 @@ function CreateSupplierModal({ onClose, onCreated }) {
   );
 }
 
+function CreateProductModal({ categories, suppliers, selectedSupplierId, onClose, onCreated }) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: {
+      ...NEW_PRODUCT_DEFAULTS,
+      preferredSupplierId: selectedSupplierId || '',
+    },
+  });
+
+  const submitProduct = async (data) => {
+    try {
+      const payload = {
+        ...data,
+        categoryId: data.categoryId || undefined,
+        preferredSupplierId: data.preferredSupplierId || undefined,
+        costPrice: parseFloat(data.costPrice || 0),
+        sellingPrice: parseFloat(data.sellingPrice || 0),
+        reorderLevel: parseFloat(data.reorderLevel || 0),
+        reorderQuantity: parseFloat(data.reorderQuantity || 0),
+      };
+      const { data: created } = await api.post('/products', payload);
+      toast.success('Product created successfully');
+      reset({
+        ...NEW_PRODUCT_DEFAULTS,
+        preferredSupplierId: selectedSupplierId || '',
+      });
+      onCreated(created);
+    } catch (err) {
+      toast.error(getErrorMsg(err));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Create Product</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <form onSubmit={handleSubmit(submitProduct)} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Product Name *</label>
+              <input className={`input ${errors.name ? 'input-error' : ''}`} {...register('name', { required: 'Product name is required' })} />
+              {errors.name && <p className="error-msg">{errors.name.message}</p>}
+            </div>
+            <div>
+              <label className="label">Unit</label>
+              <input className="input" placeholder="Pcs / Kg / Ltr" {...register('unit')} />
+            </div>
+            <div>
+              <label className="label">Category</label>
+              <select className="input" {...register('categoryId')}>
+                <option value="">— None —</option>
+                {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Preferred Supplier</label>
+              <select className="input" {...register('preferredSupplierId')}>
+                <option value="">— None —</option>
+                {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Cost Price</label>
+              <input type="number" min="0" step="0.01" className="input" {...register('costPrice')} />
+            </div>
+            <div>
+              <label className="label">Selling Price *</label>
+              <input type="number" min="0" step="0.01" className={`input ${errors.sellingPrice ? 'input-error' : ''}`} {...register('sellingPrice', { required: 'Selling price is required' })} />
+              {errors.sellingPrice && <p className="error-msg">{errors.sellingPrice.message}</p>}
+            </div>
+            <div>
+              <label className="label">Reorder Level</label>
+              <input type="number" min="0" step="0.001" className="input" {...register('reorderLevel')} />
+            </div>
+            <div>
+              <label className="label">Reorder Quantity</label>
+              <input type="number" min="0" step="0.001" className="input" {...register('reorderQuantity')} />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Description</label>
+            <textarea rows={3} className="input" {...register('description')} />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary">
+              {isSubmitting ? 'Creating…' : 'Create Product'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function CreatePO() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
 
   const { register, control, watch, setValue, getValues, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -138,9 +262,23 @@ export default function CreatePO() {
     if (selectedId) setValue('supplierId', selectedId);
   };
 
+  const fetchProducts = async (selectedId) => {
+    const { data } = await api.get('/products', { params: { limit: 200, status: 'ACTIVE' } });
+    const nextProducts = data.data || [];
+    setProducts(nextProducts);
+
+    if (selectedId) {
+      const firstEmptyIndex = items.findIndex(item => !item.productId);
+      if (firstEmptyIndex >= 0) {
+        setValue(`items.${firstEmptyIndex}.productId`, selectedId);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchSuppliers();
-    api.get('/products', { params: { limit: 200, status: 'ACTIVE' } }).then(r => setProducts(r.data.data || []));
+    fetchProducts();
+    api.get('/categories', { params: { limit: 100 } }).then(r => setCategories(r.data.data || r.data || []));
   }, []);
 
   const selectedSupplier = suppliers.find(s => s.id === supplierId);
@@ -236,7 +374,12 @@ export default function CreatePO() {
         {/* Step 2: Add Products */}
         {step === 2 && (
           <div className="card card-body space-y-4">
-            <h2>Step 2: Add Products</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2>Step 2: Add Products</h2>
+              <button type="button" className="btn-secondary btn-sm" onClick={() => setShowProductModal(true)}>
+                <PlusIcon className="w-4 h-4" /> Create Product
+              </button>
+            </div>
             <div className="space-y-3">
               {fields.map((field, index) => {
                 const product = getProductById(items[index]?.productId);
@@ -437,6 +580,19 @@ export default function CreatePO() {
           onCreated={(newSupplier) => {
             setShowSupplierModal(false);
             fetchSuppliers(newSupplier.id);
+          }}
+        />
+      )}
+
+      {showProductModal && (
+        <CreateProductModal
+          categories={categories}
+          suppliers={suppliers}
+          selectedSupplierId={supplierId}
+          onClose={() => setShowProductModal(false)}
+          onCreated={(newProduct) => {
+            setShowProductModal(false);
+            fetchProducts(newProduct.id);
           }}
         />
       )}

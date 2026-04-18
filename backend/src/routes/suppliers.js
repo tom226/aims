@@ -55,7 +55,7 @@ router.post('/', authenticate, authorize(...SUPPLIER_ROLES), [
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { name, contactPerson, email, phone, gstin, billingAddress, shippingAddress,
+    const { name, contactPerson, email, phone, gstin, pan, billingAddress, shippingAddress,
       paymentTerms, bankDetails, status, category, notes } = req.body;
 
     // Check for duplicate GSTIN
@@ -69,10 +69,10 @@ router.post('/', authenticate, authorize(...SUPPLIER_ROLES), [
     const supplierNumber = `SUP-${String(count + 1).padStart(4, '0')}`;
 
     const supplier = await prisma.supplier.create({
-      data: { supplierNumber, name, contactPerson, email, phone, gstin, billingAddress, shippingAddress, paymentTerms: paymentTerms || 'Net 30', bankDetails, status: status || 'ACTIVE', category, notes },
+      data: { supplierNumber, name, contactPerson, email, phone, gstin, pan, billingAddress, shippingAddress, paymentTerms: paymentTerms || 'Net 30', bankDetails, status: status || 'ACTIVE', category, notes },
     });
 
-    await createAuditLog({ userId: req.user.id, module: 'SUPPLIERS', action: 'CREATE', recordId: supplier.id, newValue: { name, gstin } });
+    await createAuditLog({ userId: req.user.id, module: 'SUPPLIERS', action: 'CREATE', recordId: supplier.id, newValue: { name, gstin, pan } });
     res.status(201).json(supplier);
   } catch (err) { next(err); }
 });
@@ -81,7 +81,7 @@ router.post('/', authenticate, authorize(...SUPPLIER_ROLES), [
 router.put('/:id', authenticate, authorize(...SUPPLIER_ROLES), async (req, res, next) => {
   try {
     const old = await prisma.supplier.findUniqueOrThrow({ where: { id: req.params.id } });
-    const { name, contactPerson, email, phone, gstin, billingAddress, shippingAddress,
+    const { name, contactPerson, email, phone, gstin, pan, billingAddress, shippingAddress,
       paymentTerms, bankDetails, status, category, notes } = req.body;
 
     // Check for duplicate GSTIN (excluding self)
@@ -92,7 +92,7 @@ router.put('/:id', authenticate, authorize(...SUPPLIER_ROLES), async (req, res, 
 
     const supplier = await prisma.supplier.update({
       where: { id: req.params.id },
-      data: { name, contactPerson, email, phone, gstin, billingAddress, shippingAddress, paymentTerms, bankDetails, status, category, notes },
+      data: { name, contactPerson, email, phone, gstin, pan, billingAddress, shippingAddress, paymentTerms, bankDetails, status, category, notes },
     });
 
     await createAuditLog({ userId: req.user.id, module: 'SUPPLIERS', action: 'UPDATE', recordId: supplier.id, oldValue: old, newValue: supplier });

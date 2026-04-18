@@ -42,7 +42,7 @@ function GPOPrintView({ po }) {
   const dateStr = new Date(po.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
 
   return (
-    <div id="gpo-print-area" style={{ display: 'none' }}>
+    <div id="gpo-print-area" style={{ position: 'absolute', left: '-99999px', top: 0 }}>
       <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#000', maxWidth: '820px', margin: '0 auto', padding: '20px 30px' }}>
 
         {/* Header */}
@@ -239,9 +239,32 @@ export default function PODetail() {
   const handlePrint = () => {
     const el = document.getElementById('gpo-print-area');
     if (!el) return;
-    el.style.display = 'block';
-    window.print();
-    el.style.display = 'none';
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print the G.P.O.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${po.poNumber}</title>
+          <style>
+            @page { size: A4; margin: 8mm; }
+            html, body { margin: 0; padding: 0; background: #fff; }
+            body { font-family: Arial, sans-serif; }
+            * { box-sizing: border-box; }
+          </style>
+        </head>
+        <body>${el.innerHTML}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" /></div>;
