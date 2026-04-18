@@ -9,12 +9,110 @@ import { fmtCurrency, getErrorMsg } from '../../components/utils';
 
 const STEPS = ['Select Supplier', 'Add Products', 'Set Terms', 'Review', 'Approve & Send'];
 
+const NEW_SUPPLIER_DEFAULTS = {
+  name: '',
+  contactPerson: '',
+  email: '',
+  phone: '',
+  gstin: '',
+  billingAddress: '',
+  shippingAddress: '',
+  paymentTerms: 'Net 30',
+  status: 'ACTIVE',
+  notes: '',
+};
+
+function CreateSupplierModal({ onClose, onCreated }) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm({ defaultValues: NEW_SUPPLIER_DEFAULTS });
+
+  const submitSupplier = async (data) => {
+    try {
+      const { data: created } = await api.post('/suppliers', data);
+      toast.success('Supplier created successfully');
+      reset(NEW_SUPPLIER_DEFAULTS);
+      onCreated(created);
+    } catch (err) {
+      toast.error(getErrorMsg(err));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Create Supplier</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <form onSubmit={handleSubmit(submitSupplier)} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Supplier Name *</label>
+              <input className={`input ${errors.name ? 'input-error' : ''}`} {...register('name', { required: 'Supplier name is required' })} />
+              {errors.name && <p className="error-msg">{errors.name.message}</p>}
+            </div>
+            <div>
+              <label className="label">Contact Person</label>
+              <input className="input" {...register('contactPerson')} />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input type="email" className={`input ${errors.email ? 'input-error' : ''}`} {...register('email')} />
+              {errors.email && <p className="error-msg">{errors.email.message}</p>}
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input className="input" {...register('phone')} />
+            </div>
+            <div>
+              <label className="label">GSTIN</label>
+              <input className="input" placeholder="22AAAAA0000A1Z5" {...register('gstin')} />
+            </div>
+            <div>
+              <label className="label">Payment Terms</label>
+              <select className="input" {...register('paymentTerms')}>
+                {['Net 7', 'Net 15', 'Net 30', 'Net 60', 'Immediate', 'Custom'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Billing Address</label>
+            <textarea rows={2} className="input" {...register('billingAddress')} />
+          </div>
+          <div>
+            <label className="label">Shipping Address</label>
+            <textarea rows={2} className="input" {...register('shippingAddress')} />
+          </div>
+          <div>
+            <label className="label">Notes</label>
+            <textarea rows={2} className="input" {...register('notes')} />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary">
+              {isSubmitting ? 'Creating…' : 'Create Supplier'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function CreatePO() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
 
   const { register, control, watch, setValue, getValues, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -33,8 +131,15 @@ export default function CreatePO() {
   const items = watch('items');
   const supplierId = watch('supplierId');
 
+  const fetchSuppliers = async (selectedId) => {
+    const { data } = await api.get('/suppliers', { params: { limit: 100, status: 'ACTIVE' } });
+    const nextSuppliers = data.data || [];
+    setSuppliers(nextSuppliers);
+    if (selectedId) setValue('supplierId', selectedId);
+  };
+
   useEffect(() => {
-    api.get('/suppliers', { params: { limit: 100, status: 'ACTIVE' } }).then(r => setSuppliers(r.data.data || []));
+    fetchSuppliers();
     api.get('/products', { params: { limit: 200, status: 'ACTIVE' } }).then(r => setProducts(r.data.data || []));
   }, []);
 
@@ -105,7 +210,12 @@ export default function CreatePO() {
         {/* Step 1: Select Supplier */}
         {step === 1 && (
           <div className="card card-body space-y-4">
-            <h2>Step 1: Select Supplier</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2>Step 1: Select Supplier</h2>
+              <button type="button" className="btn-secondary btn-sm" onClick={() => setShowSupplierModal(true)}>
+                <PlusIcon className="w-4 h-4" /> Create Supplier
+              </button>
+            </div>
             <div>
               <label className="label">Supplier *</label>
               <select className={`input ${errors.supplierId ? 'input-error' : ''}`} {...register('supplierId', { required: true })}>
@@ -320,6 +430,16 @@ export default function CreatePO() {
           )}
         </div>
       </form>
+
+      {showSupplierModal && (
+        <CreateSupplierModal
+          onClose={() => setShowSupplierModal(false)}
+          onCreated={(newSupplier) => {
+            setShowSupplierModal(false);
+            fetchSuppliers(newSupplier.id);
+          }}
+        />
+      )}
     </div>
   );
 }
