@@ -283,6 +283,20 @@ export default function CreatePO() {
 
   const selectedSupplier = suppliers.find(s => s.id === supplierId);
 
+  const getLineSubtotal = (item) => {
+    const qty = parseFloat(item?.quantityOrdered) || 0;
+    const price = parseFloat(item?.unitPrice) || 0;
+    return qty * price;
+  };
+
+  const getLineTaxAmount = (item) => {
+    const lineSubtotal = getLineSubtotal(item);
+    const taxRate = parseFloat(item?.taxRate) || 0;
+    return lineSubtotal * (taxRate / 100);
+  };
+
+  const getLineGrandTotal = (item) => getLineSubtotal(item) + getLineTaxAmount(item);
+
   // Auto-fill payment terms from supplier
   useEffect(() => {
     if (selectedSupplier) setValue('paymentTerms', selectedSupplier.paymentTerms);
@@ -293,11 +307,8 @@ export default function CreatePO() {
   const calcTotals = () => {
     let subTotal = 0, taxAmount = 0;
     items.forEach(item => {
-      const qty = parseFloat(item.quantityOrdered) || 0;
-      const price = parseFloat(item.unitPrice) || 0;
-      const tax = parseFloat(item.taxRate) || 0;
-      const lineTotal = qty * price;
-      const lineTax = lineTotal * (tax / 100);
+      const lineTotal = getLineSubtotal(item);
+      const lineTax = getLineTaxAmount(item);
       subTotal += lineTotal;
       taxAmount += lineTax;
     });
@@ -383,10 +394,13 @@ export default function CreatePO() {
             <div className="space-y-3">
               {fields.map((field, index) => {
                 const product = getProductById(items[index]?.productId);
+                const lineSubtotal = getLineSubtotal(items[index]);
+                const lineTaxAmount = getLineTaxAmount(items[index]);
+                const lineGrandTotal = getLineGrandTotal(items[index]);
                 return (
                   <div key={field.id} className="p-4 border border-gray-200 rounded-xl space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                      <div className="md:col-span-4">
                         <label className="label">Product *</label>
                         <select className="input" {...register(`items.${index}.productId`, { required: true })}>
                           <option value="">— Select Product —</option>
@@ -399,15 +413,15 @@ export default function CreatePO() {
                           </p>
                         )}
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="label">Qty *</label>
                         <input type="number" min="0.001" step="0.001" className="input" {...register(`items.${index}.quantityOrdered`, { required: true, min: 0.001 })} />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="label">Unit Price *</label>
                         <input type="number" min="0" step="0.01" className="input" placeholder="₹" {...register(`items.${index}.unitPrice`, { required: true, min: 0 })} />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="label">Tax Rate %</label>
                         <select className="input" {...register(`items.${index}.taxRate`)}>
                           <option value="0">0% (Exempt)</option>
@@ -417,11 +431,19 @@ export default function CreatePO() {
                           <option value="28">28% (GST)</option>
                         </select>
                       </div>
-                      <div>
-                        <label className="label">Line Total</label>
-                        <input readOnly className="input bg-gray-50" value={fmtCurrency((parseFloat(items[index]?.quantityOrdered) || 0) * (parseFloat(items[index]?.unitPrice) || 0))} />
+                      <div className="md:col-span-2">
+                        <label className="label">GST Amount</label>
+                        <input readOnly className="input bg-gray-50" value={fmtCurrency(lineTaxAmount)} />
                       </div>
-                      <div className="flex items-end">
+                      <div className="md:col-span-2">
+                        <label className="label">Line Total</label>
+                        <input readOnly className="input bg-gray-50" value={fmtCurrency(lineSubtotal)} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="label">Total incl. GST</label>
+                        <input readOnly className="input bg-gray-50 font-medium" value={fmtCurrency(lineGrandTotal)} />
+                      </div>
+                      <div className="md:col-span-2 flex items-end">
                         {fields.length > 1 && (
                           <button type="button" onClick={() => remove(index)} className="btn-danger btn-sm w-full">
                             <TrashIcon className="w-4 h-4" /> Remove
@@ -521,8 +543,8 @@ export default function CreatePO() {
                 <tbody>
                   {items.map((item, i) => {
                     const product = getProductById(item.productId);
-                    const lineTotal = (parseFloat(item.quantityOrdered) || 0) * (parseFloat(item.unitPrice) || 0);
-                    const lineTax = lineTotal * ((parseFloat(item.taxRate) || 0) / 100);
+                    const lineTotal = getLineSubtotal(item);
+                    const lineTax = getLineTaxAmount(item);
                     return (
                       <tr key={i}>
                         <td className="font-medium">{product?.name || '—'}</td>
