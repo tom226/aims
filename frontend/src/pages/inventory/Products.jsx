@@ -1,15 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { PlusIcon, PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, MagnifyingGlassIcon, ArrowDownTrayIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { StatusBadge, fmtCurrency, fmtQty, fmtDate, getErrorMsg } from '../../components/utils';
 import { useAuth } from '../../context/AuthContext';
+import { exportToCsv, parseCsv } from '../../lib/csv';
 
 const EMPTY_FORM = {
   name: '', sku: '', description: '', categoryId: '', supplierId: '',
-  unit: 'PCS', costPrice: 0, sellingPrice: 0,
+  unit: 'PCS', costPrice: 0, sellingPrice: 0, taxRate: 18,
   reorderPoint: 10, reorderQty: 50, currentStock: 0, status: 'ACTIVE',
+  brand: '', imageUrl: '', barcode: '', hsnCode: '',
+  weight: '', weightUnit: 'kg', length: '', width: '', height: '',
 };
 
 function ProductModal({ product, categories, suppliers, onClose, onSaved }) {
@@ -108,6 +111,29 @@ function ProductModal({ product, categories, suppliers, onClose, onSaved }) {
             <label className="label">Description</label>
             <textarea className="input" rows={2} {...register('description')} />
           </div>
+          <details className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+            <summary className="cursor-pointer font-medium text-sm dark:text-gray-200">Additional details (brand, dimensions, tax)</summary>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div><label className="label">Brand</label><input className="input" {...register('brand')} /></div>
+              <div><label className="label">HSN Code</label><input className="input" {...register('hsnCode')} /></div>
+              <div><label className="label">Barcode</label><input className="input" {...register('barcode')} /></div>
+              <div><label className="label">Tax Rate (%)</label><input type="number" min="0" step="0.01" className="input" {...register('taxRate', { valueAsNumber: true })} /></div>
+              <div><label className="label">Image URL</label><input className="input" {...register('imageUrl')} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="label">Weight</label><input type="number" step="0.01" className="input" {...register('weight')} /></div>
+                <div><label className="label">Unit</label>
+                  <select className="input" {...register('weightUnit')}>
+                    <option value="kg">kg</option><option value="g">g</option><option value="lb">lb</option><option value="oz">oz</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 col-span-2">
+                <div><label className="label">Length (cm)</label><input type="number" step="0.01" className="input" {...register('length')} /></div>
+                <div><label className="label">Width (cm)</label><input type="number" step="0.01" className="input" {...register('width')} /></div>
+                <div><label className="label">Height (cm)</label><input type="number" step="0.01" className="input" {...register('height')} /></div>
+              </div>
+            </div>
+          </details>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="btn-primary">
@@ -131,6 +157,38 @@ export default function Products() {
   const [categoryId, setCategoryId] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(null);
+  const fileInputRef = useRef(null);
+
+  async function handleExport() {
+    try {
+      const { data } = await api.get('/products', { params: { limit: 5000 } });
+      const rows = (data.data || []).map(p => ({
+        sku: p.sku, name: p.name, description: p.description || '',
+        categoryName: p.category?.name || '', unit: p.unit, hsnCode: p.hsnCode || '',
+        taxRate: p.taxRate, costPrice: p.costPrice, sellingPrice: p.sellingPrice,
+        reorderLevel: p.reorderLevel ?? p.reorderPoint, reorderQuantity: p.reorderQuantity ?? p.reorderQty,
+        brand: p.brand || '', barcode: p.barcode || '', currentStock: p.currentStock,
+      }));
+      exportToCsv(`products-${new Date().toISOString().slice(0,10)}.csv`, rows);
+      toast.success(`Exported ${rows.length} products`);
+    } catch (err) { toast.error(getErrorMsg(err)); }
+  }
+
+  async function handleImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length === 0) { toast.error('Empty CSV'); return; }
+      if (!confirm(`Import ${rows.length} products? Existing SKUs will be updated.`)) return;
+      const { data } = await api.post('/products/bulk-import', { rows });
+      toast.success(`Created ${data.created}, Updated ${data.updated}, Skipped ${data.skipped}`);
+      if (data.errors?.length) console.warn('Import errors:', data.errors);
+      fetchProducts();
+    } catch (err) { toast.error(getErrorMsg(err)); }
+    finally { e.target.value = ''; }
+  }
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -162,9 +220,18 @@ export default function Products() {
           <p className="text-gray-500 text-sm mt-1">{total} total products</p>
         </div>
         {hasRole('PROCUREMENT_MANAGER', 'WAREHOUSE_MANAGER', 'SUPER_ADMIN') && (
-          <button className="btn-primary" onClick={() => setModal('new')}>
-            <PlusIcon className="w-4 h-4" /> Add Product
-          </button>
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={handleExport}>
+              <ArrowDownTrayIcon className="w-4 h-4" /> Export CSV
+            </button>
+            <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
+              <ArrowUpTrayIcon className="w-4 h-4" /> Import CSV
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+            <button className="btn-primary" onClick={() => setModal('new')}>
+              <PlusIcon className="w-4 h-4" /> Add Product
+            </button>
+          </div>
         )}
       </div>
 

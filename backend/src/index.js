@@ -20,6 +20,12 @@ const inventoryRoutes = require('./routes/inventory');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
+const warehouseRoutes = require('./routes/warehouses');
+const stockTransferRoutes = require('./routes/stockTransfers');
+const salesReturnRoutes = require('./routes/salesReturns');
+const purchaseReturnRoutes = require('./routes/purchaseReturns');
+const deliveryChallanRoutes = require('./routes/deliveryChallans');
+const paymentRoutes = require('./routes/payments');
 
 const { errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
@@ -89,6 +95,12 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/stock-transfers', stockTransferRoutes);
+app.use('/api/sales-returns', salesReturnRoutes);
+app.use('/api/purchase-returns', purchaseReturnRoutes);
+app.use('/api/delivery-challans', deliveryChallanRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

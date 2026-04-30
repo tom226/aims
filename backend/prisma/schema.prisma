@@ -93,29 +93,56 @@ enum MovementType {
   ADJUSTMENT
   OPENING_STOCK
   TRANSFER
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum TransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+enum ReturnStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum ChallanStatus {
+  DRAFT
+  DISPATCHED
+  DELIVERED
+  CANCELLED
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  id             String    @id @default(uuid())
-  name           String
-  email          String    @unique
-  password       String
-  role           Role      @default(SALESPERSON)
-  isActive       Boolean   @default(true)
-  twoFaEnabled   Boolean   @default(false)
-  twoFaSecret    String?
-  lastLoginAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  role         Role      @default(SALESPERSON)
+  isActive     Boolean   @default(true)
+  twoFaEnabled Boolean   @default(false)
+  twoFaSecret  String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  purchaseOrders PurchaseOrder[] @relation("POCreatedBy")
-  salesOrders    SalesOrder[]    @relation("SOCreatedBy")
-  invoices       Invoice[]       @relation("InvCreatedBy")
-  grns           GoodsReceiptNote[] @relation("GRNCreatedBy")
-  auditLogs      AuditLog[]
-  notifications  Notification[]
+  purchaseOrders  PurchaseOrder[]    @relation("POCreatedBy")
+  salesOrders     SalesOrder[]       @relation("SOCreatedBy")
+  invoices        Invoice[]          @relation("InvCreatedBy")
+  grns            GoodsReceiptNote[] @relation("GRNCreatedBy")
+  transfers       StockTransfer[]
+  salesReturns    SalesReturn[]
+  purchaseReturns PurchaseReturn[]
+  challans        DeliveryChallan[]
+  payments        Payment[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -143,6 +170,7 @@ model Supplier {
   pan             String?
   billingAddress  String?
   shippingAddress String?
+  stateCode       String?
   paymentTerms    String         @default("Net 30")
   bankDetails     String?
   status          SupplierStatus @default(ACTIVE)
@@ -151,34 +179,39 @@ model Supplier {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  purchaseOrders   PurchaseOrder[]
+  purchaseOrders    PurchaseOrder[]
   preferredProducts Product[]
+  purchaseReturns   PurchaseReturn[]
 
   @@map("suppliers")
 }
 
 model Customer {
-  id              String         @id @default(uuid())
-  customerNumber  String         @unique
-  name            String
-  contactPerson   String?
-  email           String?
-  phone           String?
-  gstin           String?
-  pan             String?
-  billingAddress  String?
-  shippingAddress String?
-  paymentTerms    String         @default("Net 30")
-  creditLimit     Decimal        @default(0) @db.Decimal(15, 2)
-  outstandingBalance Decimal     @default(0) @db.Decimal(15, 2)
-  customerType    CustomerType   @default(RETAIL)
-  status          CustomerStatus @default(ACTIVE)
-  notes           String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                 String         @id @default(uuid())
+  customerNumber     String         @unique
+  name               String
+  contactPerson      String?
+  email              String?
+  phone              String?
+  gstin              String?
+  pan                String?
+  billingAddress     String?
+  shippingAddress    String?
+  stateCode          String?
+  paymentTerms       String         @default("Net 30")
+  creditLimit        Decimal        @default(0) @db.Decimal(15, 2)
+  outstandingBalance Decimal        @default(0) @db.Decimal(15, 2)
+  customerType       CustomerType   @default(RETAIL)
+  status             CustomerStatus @default(ACTIVE)
+  notes              String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  salesOrders SalesOrder[]
-  invoices    Invoice[]
+  salesOrders  SalesOrder[]
+  invoices     Invoice[]
+  salesReturns SalesReturn[]
+  challans     DeliveryChallan[]
+  payments     Payment[]
 
   @@map("customers")
 }
@@ -204,13 +237,29 @@ model Product {
   reservedStock       Decimal       @default(0) @db.Decimal(15, 3)
   status              ProductStatus @default(ACTIVE)
   storageLocation     String?
+  brand               String?
+  imageUrl            String?
+  weight              Decimal?      @db.Decimal(10, 3)
+  weightUnit          String?       @default("kg")
+  length              Decimal?      @db.Decimal(10, 2)
+  width               Decimal?      @db.Decimal(10, 2)
+  height              Decimal?      @db.Decimal(10, 2)
+  isComposite         Boolean       @default(false)
+  uomConversions      Json?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  purchaseOrderItems PurchaseOrderItem[]
-  salesOrderItems    SalesOrderItem[]
-  invoiceItems       InvoiceItem[]
-  stockLedgerEntries StockLedgerEntry[]
+  purchaseOrderItems  PurchaseOrderItem[]
+  salesOrderItems     SalesOrderItem[]
+  invoiceItems        InvoiceItem[]
+  stockLedgerEntries  StockLedgerEntry[]
+  warehouseStock      WarehouseStock[]
+  transferItems       StockTransferItem[]
+  salesReturnItems    SalesReturnItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+  challanItems        DeliveryChallanItem[]
+  bomComponents       BomComponent[]        @relation("BomParent")
+  bomUsedIn           BomComponent[]        @relation("BomChild")
 
   @@map("products")
 }
@@ -265,16 +314,16 @@ model PurchaseOrderItem {
 }
 
 model GoodsReceiptNote {
-  id            String    @id @default(uuid())
-  grnNumber     String    @unique
+  id            String        @id @default(uuid())
+  grnNumber     String        @unique
   poId          String
   purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
-  status        GRNStatus @default(DRAFT)
-  receivedDate  DateTime  @default(now())
+  status        GRNStatus     @default(DRAFT)
+  receivedDate  DateTime      @default(now())
   notes         String?
   createdById   String
-  createdBy     User      @relation("GRNCreatedBy", fields: [createdById], references: [id])
-  createdAt     DateTime  @default(now())
+  createdBy     User          @relation("GRNCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
 
   items GRNItem[]
 
@@ -282,15 +331,15 @@ model GoodsReceiptNote {
 }
 
 model GRNItem {
-  id               String           @id @default(uuid())
+  id               String            @id @default(uuid())
   grnId            String
-  grn              GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  grn              GoodsReceiptNote  @relation(fields: [grnId], references: [id], onDelete: Cascade)
   poItemId         String
   poItem           PurchaseOrderItem @relation(fields: [poItemId], references: [id])
-  quantityReceived Decimal          @db.Decimal(15, 3)
+  quantityReceived Decimal           @db.Decimal(15, 3)
   batchNumber      String?
   expiryDate       DateTime?
-  qualityStatus    QualityStatus    @default(PASS)
+  qualityStatus    QualityStatus     @default(PASS)
   notes            String?
 
   @@map("grn_items")
@@ -339,30 +388,40 @@ model SalesOrderItem {
 }
 
 model Invoice {
-  id              String        @id @default(uuid())
-  invoiceNumber   String        @unique
-  invoiceDate     DateTime      @default(now())
+  id              String         @id @default(uuid())
+  invoiceNumber   String         @unique
+  invoiceDate     DateTime       @default(now())
   dueDate         DateTime?
   customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
+  customer        Customer       @relation(fields: [customerId], references: [id])
   salesOrderId    String?
-  salesOrder      SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
   linkedPoId      String?
   linkedPo        PurchaseOrder? @relation(fields: [linkedPoId], references: [id])
   createdById     String
-  createdBy       User          @relation("InvCreatedBy", fields: [createdById], references: [id])
-  status          InvoiceStatus @default(DRAFT)
-  subTotal        Decimal       @default(0) @db.Decimal(15, 2)
-  discountAmount  Decimal       @default(0) @db.Decimal(15, 2)
-  taxAmount       Decimal       @default(0) @db.Decimal(15, 2)
-  shippingCharges Decimal       @default(0) @db.Decimal(15, 2)
-  grandTotal      Decimal       @default(0) @db.Decimal(15, 2)
-  amountPaid      Decimal       @default(0) @db.Decimal(15, 2)
+  createdBy       User           @relation("InvCreatedBy", fields: [createdById], references: [id])
+  status          InvoiceStatus  @default(DRAFT)
+  subTotal        Decimal        @default(0) @db.Decimal(15, 2)
+  discountAmount  Decimal        @default(0) @db.Decimal(15, 2)
+  taxAmount       Decimal        @default(0) @db.Decimal(15, 2)
+  cgstAmount      Decimal        @default(0) @db.Decimal(15, 2)
+  sgstAmount      Decimal        @default(0) @db.Decimal(15, 2)
+  igstAmount      Decimal        @default(0) @db.Decimal(15, 2)
+  cessAmount      Decimal        @default(0) @db.Decimal(15, 2)
+  placeOfSupply   String?
+  isInterState    Boolean        @default(false)
+  eInvoiceIrn     String?
+  eWayBillNo      String?
+  shippingCharges Decimal        @default(0) @db.Decimal(15, 2)
+  grandTotal      Decimal        @default(0) @db.Decimal(15, 2)
+  amountPaid      Decimal        @default(0) @db.Decimal(15, 2)
   notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  items InvoiceItem[]
+  items    InvoiceItem[]
+  returns  SalesReturn[]
+  payments Payment[]
 
   @@map("invoices")
 }
@@ -433,4 +492,210 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+// ─── Multi-warehouse, Stock transfer, Returns, Challans, Payments, BOM ───────
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  address   String?
+  stateCode String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stock         WarehouseStock[]
+  transfersFrom StockTransfer[]  @relation("TransferFrom")
+  transfersTo   StockTransfer[]  @relation("TransferTo")
+
+  @@map("warehouses")
+}
+
+model WarehouseStock {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity    Decimal   @default(0) @db.Decimal(15, 3)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([warehouseId, productId])
+  @@map("warehouse_stock")
+}
+
+model StockTransfer {
+  id              String         @id @default(uuid())
+  transferNumber  String         @unique
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  status          TransferStatus @default(DRAFT)
+  transferDate    DateTime       @default(now())
+  notes           String?
+  createdById     String
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items StockTransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id         String        @id @default(uuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id])
+  quantity   Decimal       @db.Decimal(15, 3)
+
+  @@map("stock_transfer_items")
+}
+
+model SalesReturn {
+  id           String       @id @default(uuid())
+  returnNumber String       @unique
+  invoiceId    String?
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id])
+  customerId   String
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  returnDate   DateTime     @default(now())
+  status       ReturnStatus @default(DRAFT)
+  reason       String?
+  subTotal     Decimal      @default(0) @db.Decimal(15, 2)
+  taxAmount    Decimal      @default(0) @db.Decimal(15, 2)
+  grandTotal   Decimal      @default(0) @db.Decimal(15, 2)
+  notes        String?
+  createdById  String
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  items SalesReturnItem[]
+
+  @@map("sales_returns")
+}
+
+model SalesReturnItem {
+  id        String      @id @default(uuid())
+  returnId  String
+  return    SalesReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  quantity  Decimal     @db.Decimal(15, 3)
+  unitPrice Decimal     @db.Decimal(15, 2)
+  taxRate   Decimal     @default(0) @db.Decimal(5, 2)
+  taxAmount Decimal     @default(0) @db.Decimal(15, 2)
+  total     Decimal     @default(0) @db.Decimal(15, 2)
+
+  @@map("sales_return_items")
+}
+
+model PurchaseReturn {
+  id           String       @id @default(uuid())
+  returnNumber String       @unique
+  supplierId   String
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+  returnDate   DateTime     @default(now())
+  status       ReturnStatus @default(DRAFT)
+  reason       String?
+  subTotal     Decimal      @default(0) @db.Decimal(15, 2)
+  taxAmount    Decimal      @default(0) @db.Decimal(15, 2)
+  grandTotal   Decimal      @default(0) @db.Decimal(15, 2)
+  notes        String?
+  createdById  String
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  items PurchaseReturnItem[]
+
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id        String         @id @default(uuid())
+  returnId  String
+  return    PurchaseReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id])
+  quantity  Decimal        @db.Decimal(15, 3)
+  unitPrice Decimal        @db.Decimal(15, 2)
+  taxRate   Decimal        @default(0) @db.Decimal(5, 2)
+  taxAmount Decimal        @default(0) @db.Decimal(15, 2)
+  total     Decimal        @default(0) @db.Decimal(15, 2)
+
+  @@map("purchase_return_items")
+}
+
+model DeliveryChallan {
+  id              String        @id @default(uuid())
+  challanNumber   String        @unique
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  challanDate     DateTime      @default(now())
+  status          ChallanStatus @default(DRAFT)
+  vehicleNumber   String?
+  driverName      String?
+  driverPhone     String?
+  transporter     String?
+  shippingAddress String?
+  notes           String?
+  createdById     String
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items DeliveryChallanItem[]
+
+  @@map("delivery_challans")
+}
+
+model DeliveryChallanItem {
+  id        String          @id @default(uuid())
+  challanId String
+  challan   DeliveryChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  quantity  Decimal         @db.Decimal(15, 3)
+  notes     String?
+
+  @@map("delivery_challan_items")
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  paymentNumber String   @unique
+  invoiceId     String?
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id])
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  amount        Decimal  @db.Decimal(15, 2)
+  paymentDate   DateTime @default(now())
+  paymentMode   String
+  referenceNo   String?
+  notes         String?
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@map("payments")
+}
+
+model BomComponent {
+  id              String  @id @default(uuid())
+  parentProductId String
+  parentProduct   Product @relation("BomParent", fields: [parentProductId], references: [id], onDelete: Cascade)
+  childProductId  String
+  childProduct    Product @relation("BomChild", fields: [childProductId], references: [id])
+  quantity        Decimal @db.Decimal(15, 3)
+
+  @@unique([parentProductId, childProductId])
+  @@map("bom_components")
 }

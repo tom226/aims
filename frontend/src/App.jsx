@@ -23,6 +23,13 @@ import StockLedger from './pages/inventory/StockLedger';
 import StockAdjustment from './pages/inventory/StockAdjustment';
 import Reports from './pages/Reports';
 import Users from './pages/settings/Users';
+import Warehouses from './pages/inventory/Warehouses';
+import StockTransfers from './pages/inventory/StockTransfers';
+import CreateTransfer from './pages/inventory/CreateTransfer';
+import SalesReturns from './pages/sales/SalesReturns';
+import PurchaseReturns from './pages/purchase/PurchaseReturns';
+import DeliveryChallans from './pages/sales/DeliveryChallans';
+import Payments from './pages/sales/Payments';
 
 export default function App() {
   return (
@@ -52,6 +59,14 @@ export default function App() {
           <Route path="inventory/stock" element={<StockSummary />} />
           <Route path="inventory/ledger" element={<StockLedger />} />
           <Route path="inventory/adjustments" element={<StockAdjustment />} />
+          <Route path="inventory/warehouses" element={<Warehouses />} />
+          <Route path="inventory/transfers" element={<StockTransfers />} />
+          <Route path="inventory/transfers/new" element={<CreateTransfer />} />
+          {/* Returns / Challans / Payments */}
+          <Route path="sales/returns" element={<SalesReturns />} />
+          <Route path="sales/challans" element={<DeliveryChallans />} />
+          <Route path="sales/payments" element={<Payments />} />
+          <Route path="purchase/returns" element={<PurchaseReturns />} />
           {/* Reports */}
           <Route path="reports" element={<Reports />} />
           {/* Settings */}

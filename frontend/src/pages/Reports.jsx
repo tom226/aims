@@ -12,6 +12,13 @@ const REPORTS = [
   { id: 'reorder-report', label: 'Reorder Report', desc: 'Products at or below reorder point' },
   { id: 'po-invoice-reconciliation', label: 'PO-Invoice Reconciliation', desc: 'Match purchase orders to invoices' },
   { id: 'inventory-valuation', label: 'Inventory Valuation', desc: 'Current stock value at cost price' },
+  { id: 'abc-analysis', label: 'ABC Analysis', desc: 'Classify products A/B/C by sales contribution' },
+  { id: 'dead-stock', label: 'Dead Stock', desc: 'Products without movement in N days' },
+  { id: 'stock-aging', label: 'Stock Aging', desc: 'Stock value by age buckets' },
+  { id: 'customer-aging', label: 'Customer Aging', desc: 'Receivables aged 0-30-60-90+ days' },
+  { id: 'profitability', label: 'Profitability', desc: 'Revenue vs cost margin per product' },
+  { id: 'gst-summary', label: 'GST Summary', desc: 'HSN-wise tax summary (GSTR-1 like)' },
+  { id: 'supplier-performance', label: 'Supplier Performance', desc: 'Fulfillment & on-time delivery rates' },
 ];
 
 function PurchaseRegisterTable({ data }) {
@@ -174,10 +181,18 @@ export default function Reports() {
     setLoading(true);
     setResults(null);
     try {
-      const res = await api.get(`/reports/${activeReport}`, { params: { fromDate, toDate } });
-      setResults(res.data.data || res.data);
-    } catch {
-      toast.error('Failed to run report');
+      // Some reports use from/to instead of fromDate/toDate, plus extra params
+      const params = { fromDate, toDate, from: fromDate, to: toDate };
+      if (activeReport === 'dead-stock') params.days = 90;
+      const res = await api.get(`/reports/${activeReport}`, { params });
+      // Different shapes
+      const d = res.data;
+      if (Array.isArray(d)) setResults(d);
+      else if (d.data) setResults(d.data);
+      else if (d.hsnSummary) setResults(d.hsnSummary);
+      else setResults([d]);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Failed to run report');
     } finally {
       setLoading(false);
     }
